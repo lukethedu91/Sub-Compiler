@@ -52,6 +52,7 @@ import com.bookend.reflection.ui.components.ProgressTrack
 import com.bookend.reflection.ui.greeting
 import com.bookend.reflection.ui.longLabel
 import com.bookend.reflection.ui.title
+import java.time.LocalDate
 import java.time.format.TextStyle
 import java.util.Locale
 
@@ -59,6 +60,7 @@ import java.util.Locale
 fun HomeScreen(
     state: HomeUiState,
     onOpen: (DayPart) -> Unit,
+    onOpenDay: (LocalDate) -> Unit,
     onHistory: () -> Unit,
     onSettings: () -> Unit,
     onResume: () -> Unit,
@@ -135,13 +137,22 @@ fun HomeScreen(
 
             if (state.week.isNotEmpty()) {
                 Spacer(Modifier.height(28.dp))
-                Text(
-                    text = "This week",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = "THIS WEEK",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.weight(1f),
+                    )
+                    Text(
+                        text = "All entries",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.clickable(onClick = onHistory),
+                    )
+                }
                 Spacer(Modifier.height(10.dp))
-                WeekStrip(days = state.week, onClick = onHistory)
+                WeekStrip(days = state.week, onSelect = onOpenDay)
             }
 
             if (state.totalEntries == 0) {
@@ -246,13 +257,11 @@ private fun nextQuestionLabel(part: DayPart, entry: ReflectionEntry?): String {
 }
 
 @Composable
-private fun WeekStrip(days: List<DayMark>, onClick: () -> Unit) {
+private fun WeekStrip(days: List<DayMark>, onSelect: (LocalDate) -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(MaterialTheme.shapes.medium)
-            .clickable(onClick = onClick)
-            .padding(vertical = 8.dp),
+            .padding(vertical = 4.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
     ) {
         days.forEach { day ->
@@ -268,7 +277,13 @@ private fun WeekStrip(days: List<DayMark>, onClick: () -> Unit) {
                 animationSpec = tween(250),
                 label = "day-dot",
             )
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier
+                    .clip(MaterialTheme.shapes.small)
+                    .clickable { onSelect(day.date) }
+                    .padding(horizontal = 8.dp, vertical = 6.dp),
+            ) {
                 Text(
                     text = day.date.dayOfWeek
                         .getDisplayName(TextStyle.NARROW, Locale.getDefault()),

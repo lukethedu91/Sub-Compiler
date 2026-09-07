@@ -1,6 +1,6 @@
 package com.bookend.reflection.ui.history
 
-import androidx.compose.animation.animateContentSize
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -15,11 +15,11 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.outlined.DeleteOutline
-import androidx.compose.material3.AlertDialog
+import androidx.compose.material.icons.outlined.CalendarMonth
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -27,16 +27,12 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -44,18 +40,20 @@ import com.bookend.reflection.data.DayPart
 import com.bookend.reflection.data.Question
 import com.bookend.reflection.data.ReflectionEntry
 import com.bookend.reflection.ui.components.ContentMaxWidth
-import com.bookend.reflection.ui.components.Pill
 import com.bookend.reflection.ui.relativeLabel
-import com.bookend.reflection.ui.title
 import java.time.LocalDate
+import java.time.YearMonth
+import java.time.format.DateTimeFormatter
 
+private val monthFormatter = DateTimeFormatter.ofPattern("MMMM yyyy")
+
+/** The journal's index: every day that has something in it, newest first. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HistoryScreen(
     entries: List<ReflectionEntry>,
     onBack: () -> Unit,
-    onOpen: (LocalDate, DayPart) -> Unit,
-    onDelete: (ReflectionEntry) -> Unit,
+    onOpenDay: (LocalDate) -> Unit,
 ) {
     val days = entries
         .groupBy { it.dateEpochDay }
@@ -63,16 +61,22 @@ fun HistoryScreen(
         .sortedByDescending { it.key }
         .map { LocalDate.ofEpochDay(it.key) to it.value }
 
-    var pendingDelete by remember { mutableStateOf<ReflectionEntry?>(null) }
-
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         topBar = {
             TopAppBar(
-                title = { Text("History", style = MaterialTheme.typography.titleMedium) },
+                title = { Text("Journal", style = MaterialTheme.typography.titleMedium) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                    }
+                },
+                actions = {
+                    IconButton(onClick = { onOpenDay(LocalDate.now()) }) {
+                        Icon(
+                            Icons.Outlined.CalendarMonth,
+                            contentDescription = "Open today",
+                        )
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent),
@@ -108,80 +112,42 @@ fun HistoryScreen(
                     .widthIn(max = ContentMaxWidth)
                     .fillMaxWidth(),
                 contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 40.dp),
-                verticalArrangement = Arrangement.spacedBy(20.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                items(days, key = { it.first.toEpochDay() }) { (date, dayEntries) ->
-                    DaySection(
+                itemsIndexed(days, key = { _, day -> day.first.toEpochDay() }) { index, day ->
+                    val (date, dayEntries) = day
+                    // A quiet month heading each time the month changes.
+                    val previousMonth = days.getOrNull(index - 1)?.let { YearMonth.from(it.first) }
+                    if (previousMonth != YearMonth.from(date)) {
+                        Text(
+                            text = date.format(monthFormatter),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(top = 16.dp, bottom = 6.dp),
+                        )
+                    }
+                    DayRow(
                         date = date,
-                        entries = dayEntries.sortedBy { it.part.ordinal },
-                        onOpen = onOpen,
-                        onDelete = { pendingDelete = it },
+                        entries = dayEntries,
+                        onClick = { onOpenDay(date) },
                     )
                 }
             }
         }
     }
-
-    val target = pendingDelete
-    if (target != null) {
-        AlertDialog(
-            onDismissRequest = { pendingDelete = null },
-            title = { Text("Delete this entry?") },
-            text = {
-                Text(
-                    "The ${target.part.title().lowercase()} answers for " +
-                        "${target.date.relativeLabel().lowercase()} will be removed.",
-                )
-            },
-            confirmButton = {
-                TextButton(onClick = {
-                    onDelete(target)
-                    pendingDelete = null
-                }) { Text("Delete") }
-            },
-            dismissButton = {
-                TextButton(onClick = { pendingDelete = null }) { Text("Cancel") }
-            },
-        )
-    }
 }
 
 @Composable
-private fun DaySection(
+private fun DayRow(
     date: LocalDate,
     entries: List<ReflectionEntry>,
-    onOpen: (LocalDate, DayPart) -> Unit,
-    onDelete: (ReflectionEntry) -> Unit,
+    onClick: () -> Unit,
 ) {
-    Column {
-        Text(
-            text = date.relativeLabel(),
-            style = MaterialTheme.typography.titleMedium,
-            color = MaterialTheme.colorScheme.onBackground,
-        )
-        Spacer(Modifier.height(10.dp))
-        entries.forEach { entry ->
-            EntryCard(
-                entry = entry,
-                onOpen = { onOpen(date, entry.part) },
-                onDelete = { onDelete(entry) },
-            )
-            Spacer(Modifier.height(10.dp))
-        }
-    }
-}
-
-@Composable
-private fun EntryCard(
-    entry: ReflectionEntry,
-    onOpen: () -> Unit,
-    onDelete: () -> Unit,
-) {
-    var expanded by remember { mutableStateOf(false) }
-    val accent = if (entry.part == DayPart.MORNING) {
-        MaterialTheme.colorScheme.primary
-    } else {
-        MaterialTheme.colorScheme.secondary
+    val morning = entries.firstOrNull { it.part == DayPart.MORNING }
+    val evening = entries.firstOrNull { it.part == DayPart.EVENING }
+    val preview = (evening ?: morning)?.let { entry ->
+        Question.entries.firstOrNull { entry.answer(it).isNotBlank() }
+            ?.let { entry.answer(it) }
     }
 
     Surface(
@@ -189,67 +155,49 @@ private fun EntryCard(
         shape = MaterialTheme.shapes.medium,
         color = MaterialTheme.colorScheme.surfaceContainerLow,
     ) {
-        Column(
+        Row(
             modifier = Modifier
-                .animateContentSize()
-                .clickable { expanded = !expanded }
+                .clickable(onClick = onClick)
                 .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = entry.part.title(),
-                    style = MaterialTheme.typography.labelLarge,
-                    color = accent,
-                    modifier = Modifier.weight(1f),
+                    text = date.relativeLabel(),
+                    style = MaterialTheme.typography.titleMedium,
                 )
-                Pill(text = "${entry.answeredCount}/${Question.entries.size}")
-                Spacer(Modifier.size(4.dp))
-                IconButton(onClick = onDelete) {
-                    Icon(
-                        Icons.Outlined.DeleteOutline,
-                        contentDescription = "Delete ${entry.part.title()} entry",
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                if (preview != null) {
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        text = preview,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
                     )
                 }
             }
-
-            Spacer(Modifier.height(4.dp))
-            val shown = if (expanded) {
-                Question.entries.filter { entry.answer(it).isNotBlank() }
-            } else {
-                Question.entries.filter { entry.answer(it).isNotBlank() }.take(2)
-            }
-            shown.forEach { question ->
-                Text(
-                    text = question.label,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(top = 8.dp),
-                )
-                Text(
-                    text = entry.answer(question),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    maxLines = if (expanded) Int.MAX_VALUE else 2,
-                )
-            }
-
-            Spacer(Modifier.height(12.dp))
-            Row {
-                Text(
-                    text = if (expanded) "Show less" else "Show all",
-                    style = MaterialTheme.typography.labelLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.clickable { expanded = !expanded },
-                )
-                Spacer(Modifier.size(20.dp))
-                Text(
-                    text = "Edit",
-                    style = MaterialTheme.typography.labelLarge,
-                    color = accent,
-                    modifier = Modifier.clickable(onClick = onOpen),
-                )
-            }
+            Spacer(Modifier.size(12.dp))
+            PartDot(
+                filled = morning != null && !morning.isBlank,
+                color = MaterialTheme.colorScheme.primary,
+            )
+            Spacer(Modifier.size(6.dp))
+            PartDot(
+                filled = evening != null && !evening.isBlank,
+                color = MaterialTheme.colorScheme.secondary,
+            )
         }
     }
+}
+
+@Composable
+private fun PartDot(filled: Boolean, color: Color) {
+    Box(
+        modifier = Modifier
+            .size(10.dp)
+            .clip(CircleShape)
+            .background(
+                if (filled) color else MaterialTheme.colorScheme.surfaceContainerHighest,
+            ),
+    )
 }

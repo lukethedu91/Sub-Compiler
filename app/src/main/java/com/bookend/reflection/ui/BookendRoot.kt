@@ -20,14 +20,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.bookend.reflection.data.DayPart
+import com.bookend.reflection.ui.day.DayScreen
 import com.bookend.reflection.ui.entry.EntryScreen
 import com.bookend.reflection.ui.history.HistoryScreen
 import com.bookend.reflection.ui.home.HomeScreen
 import com.bookend.reflection.ui.settings.SettingsScreen
 import java.time.LocalDate
-
-/** Home sits at depth 0; everything else is one level in, and animates that way. */
-private fun Screen.depth(): Int = if (this is Screen.Home) 0 else 1
 
 @Composable
 fun BookendRoot(
@@ -36,41 +34,60 @@ fun BookendRoot(
     onLaunchPartHandled: () -> Unit,
     onRequestNotificationPermission: () -> Unit,
 ) {
-    var screen: Screen by remember { mutableStateOf<Screen>(Screen.Home) }
+    // A plain stack: back goes where you came from, which matters once you can
+    // reach the editor from home, from a day page, or from the journal index.
+    var stack by remember { mutableStateOf(listOf<Screen>(Screen.Home)) }
+    val screen = stack.last()
+
     val home by viewModel.home.collectAsStateWithLifecycle()
     val entries by viewModel.entries.collectAsStateWithLifecycle()
     val settings by viewModel.settings.collectAsStateWithLifecycle()
     val draft by viewModel.draft.collectAsStateWithLifecycle()
     val saveState by viewModel.saveState.collectAsStateWithLifecycle()
 
-    fun open(date: LocalDate, part: DayPart) {
-        viewModel.openEntry(date, part)
-        screen = Screen.Entry(date, part)
+    fun leaving(current: Screen) {
+        if (current is Screen.Entry) viewModel.closeEntry()
     }
 
-    fun goHome() {
-        if (screen is Screen.Entry) viewModel.closeEntry()
-        screen = Screen.Home
+    fun push(destination: Screen) {
+        leaving(screen)
+        if (destination is Screen.Entry) viewModel.openEntry(destination.date, destination.part)
+        stack = stack + destination
+    }
+
+    /** Replaces the top of the stack; used to page from one day to the next. */
+    fun replace(destination: Screen) {
+        leaving(screen)
+        if (destination is Screen.Entry) viewModel.openEntry(destination.date, destination.part)
+        stack = stack.dropLast(1) + destination
+    }
+
+    fun pop() {
+        leaving(screen)
+        stack = if (stack.size > 1) stack.dropLast(1) else stack
     }
 
     // A reminder or widget tap always lands on that half of today.
     LaunchedEffect(launchPart) {
         val part = launchPart ?: return@LaunchedEffect
         viewModel.refreshToday()
-        open(LocalDate.now(), part)
+        val today = LocalDate.now()
+        leaving(screen)
+        viewModel.openEntry(today, part)
+        stack = listOf(Screen.Home, Screen.Entry(today, part))
         onLaunchPartHandled()
     }
 
-    BackHandler(enabled = screen !is Screen.Home) { goHome() }
+    BackHandler(enabled = stack.size > 1) { pop() }
 
     Surface(
         modifier = Modifier.fillMaxSize(),
         color = MaterialTheme.colorScheme.background,
     ) {
         AnimatedContent(
-            targetState = screen,
+            targetState = stack,
             transitionSpec = {
-                val forward = targetState.depth() >= initialState.depth()
+                val forward = targetState.size >= initialState.size
                 val shift = if (forward) 1 else -1
                 (
                     slideInHorizontally(tween(260)) { width -> shift * width / 6 } +
@@ -81,14 +98,24 @@ fun BookendRoot(
                     )
             },
             label = "screen",
-        ) { current ->
-            when (current) {
+        ) { currentStack ->
+            when (val current = currentStack.last()) {
                 Screen.Home -> HomeScreen(
                     state = home,
-                    onOpen = { part -> open(home.today, part) },
-                    onHistory = { screen = Screen.History },
-                    onSettings = { screen = Screen.Settings },
+                    onOpen = { part -> push(Screen.Entry(home.today, part)) },
+                    onOpenDay = { date -> push(Screen.Day(date)) },
+                    onHistory = { push(Screen.History) },
+                    onSettings = { push(Screen.Settings) },
                     onResume = viewModel::refreshToday,
+                )
+
+                is Screen.Day -> DayScreen(
+                    date = current.date,
+                    entries = entries.filter { it.dateEpochDay == current.date.toEpochDay() },
+                    onBack = ::pop,
+                    onGoToDate = { date -> replace(Screen.Day(date)) },
+                    onEdit = { part -> push(Screen.Entry(current.date, part)) },
+                    onDelete = viewModel::deleteEntry,
                 )
 
                 is Screen.Entry -> EntryScreen(
@@ -97,23 +124,20 @@ fun BookendRoot(
                     entry = draft,
                     saveState = saveState,
                     onAnswerChange = viewModel::updateAnswer,
-                    onBack = ::goHome,
-                    onSwitchPart = { part ->
-                        viewModel.closeEntry()
-                        open(current.date, part)
-                    },
+                    onBack = ::pop,
+                    onSwitchPart = { part -> replace(Screen.Entry(current.date, part)) },
+                    onOpenDay = { push(Screen.Day(current.date)) },
                 )
 
                 Screen.History -> HistoryScreen(
                     entries = entries,
-                    onBack = ::goHome,
-                    onOpen = { date, part -> open(date, part) },
-                    onDelete = viewModel::deleteEntry,
+                    onBack = ::pop,
+                    onOpenDay = { date -> push(Screen.Day(date)) },
                 )
 
                 Screen.Settings -> SettingsScreen(
                     settings = settings,
-                    onBack = ::goHome,
+                    onBack = ::pop,
                     onToggleReminders = { enabled ->
                         viewModel.setRemindersEnabled(enabled)
                         if (enabled) onRequestNotificationPermission()

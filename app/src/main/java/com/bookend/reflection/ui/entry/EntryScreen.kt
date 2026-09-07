@@ -23,6 +23,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.outlined.MenuBook
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -65,6 +66,7 @@ fun EntryScreen(
     onAnswerChange: (Question, String) -> Unit,
     onBack: () -> Unit,
     onSwitchPart: (DayPart) -> Unit,
+    onOpenDay: () -> Unit,
 ) {
     val questions = Question.entries
     val answered = entry?.answeredCount ?: 0
@@ -89,7 +91,13 @@ fun EntryScreen(
                 },
                 actions = {
                     SaveIndicator(saveState)
-                    Spacer(Modifier.size(8.dp))
+                    Spacer(Modifier.size(4.dp))
+                    IconButton(onClick = onOpenDay) {
+                        Icon(
+                            Icons.Outlined.MenuBook,
+                            contentDescription = "Read the whole day",
+                        )
+                    }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = Color.Transparent,
