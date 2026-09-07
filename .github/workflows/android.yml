@@ -19,13 +19,26 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
 
       - name: Unit tests
-        run: ./gradlew testDebugUnitTest --stacktrace
+        run: |
+          set -o pipefail
+          ./gradlew testDebugUnitTest --console=plain 2>&1 | tee -a build.log
 
       - name: Assemble debug APK
-        run: ./gradlew assembleDebug --stacktrace
+        run: |
+          set -o pipefail
+          ./gradlew assembleDebug --console=plain 2>&1 | tee -a build.log
+
+      # Kotlin/KSP diagnostics scroll far above the Gradle stack trace, so
+      # repeat them at the end of the job where they are easy to find.
+      - name: Compiler diagnostics
+        if: failure()
+        run: |
+          echo "=== errors and failing tasks ==="
+          grep -E "^(e|w): |^error: |FAILED|Execution failed" build.log | head -100 || true
 
       - uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: bookend-debug-apk
           path: app/build/outputs/apk/debug/*.apk
-          if-no-files-found: error
+          if-no-files-found: warn
