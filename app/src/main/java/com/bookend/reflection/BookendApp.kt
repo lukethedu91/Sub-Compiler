@@ -6,6 +6,7 @@ import com.bookend.reflection.data.EntryRepository
 import com.bookend.reflection.data.SettingsRepository
 import com.bookend.reflection.reminder.Notifications
 import com.bookend.reflection.reminder.ReminderScheduler
+import com.bookend.reflection.widget.QuickEntryWidget
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -32,6 +33,10 @@ class BookendApp : Application() {
         Notifications.ensureChannel(this)
         appScope.launch {
             scheduler.apply(settings.settings.first())
+        }
+        appScope.launch {
+            // Anything written in the app should show up on the home screen.
+            entries.observeAll().collect { QuickEntryWidget.refresh(this@BookendApp) }
         }
     }
 }

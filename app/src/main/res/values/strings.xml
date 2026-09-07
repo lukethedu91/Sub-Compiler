@@ -1,4 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Bookend</string>
+    <string name="widget_name">Bookend quick entry</string>
+    <string name="widget_description">Today\'s next question, one tap from the home screen.</string>
 </resources>

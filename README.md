@@ -18,10 +18,22 @@ so you can see what you expected against what actually happened.
 
 - Two daily notifications, at times you choose (default 7:00 AM and 9:00 PM).
   Tapping one opens straight into that half of the day.
+- A home-screen widget showing the next question you have not answered, with a
+  tap target for each half of the day.
 - Answers save as you type; an entry with every field cleared is removed.
 - History grouped by day, with a streak count on the home screen.
 - Everything is stored locally in a Room database. No account, no network
   permission, no analytics.
+
+## Installing a build
+
+Every push builds an APK and attaches it to the `dev` prerelease:
+
+    https://github.com/lukethedu91/Sub-Compiler/releases/download/dev/bookend-debug.apk
+
+Open that on the phone and allow your browser to install unknown apps. Each CI
+run signs with a fresh debug key, so uninstall the previous copy before
+installing a newer one.
 
 ## Building
 
@@ -39,6 +51,7 @@ app/src/main/java/com/bookend/reflection/
 ├── BookendApp.kt              application: repositories, channel, alarm boot-up
 ├── data/                      Room entities, DAO, repositories, settings, streak math
 ├── reminder/                  alarm scheduling, notifications, boot/time-change receiver
+├── widget/                    home-screen quick entry widget
 └── ui/                        Compose screens (home, entry, history, settings)
 ```
 

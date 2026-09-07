@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.Intent
 import com.bookend.reflection.data.DayPart
 import com.bookend.reflection.data.SettingsRepository
+import com.bookend.reflection.widget.QuickEntryWidget
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
@@ -20,6 +21,7 @@ class ReminderReceiver : BroadcastReceiver() {
 
         Notifications.ensureChannel(appContext)
         Notifications.show(appContext, part)
+        QuickEntryWidget.refresh(appContext)
 
         CoroutineScope(Dispatchers.IO).launch {
             try {
