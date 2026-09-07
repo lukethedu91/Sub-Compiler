@@ -25,7 +25,9 @@ fun DayPart.title(): String = when (this) {
     DayPart.EVENING -> "Evening"
 }
 
-fun DayPart.tagline(): String = when (this) {
-    DayPart.MORNING -> "Set up the day ahead"
-    DayPart.EVENING -> "Look back on the day"
+fun greeting(now: LocalTime = LocalTime.now()): String = when (now.hour) {
+    in 0..4 -> "Still up"
+    in 5..11 -> "Good morning"
+    in 12..16 -> "Good afternoon"
+    else -> "Good evening"
 }

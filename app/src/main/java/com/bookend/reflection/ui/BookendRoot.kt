@@ -2,8 +2,11 @@ package com.bookend.reflection.ui
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
@@ -23,6 +26,9 @@ import com.bookend.reflection.ui.home.HomeScreen
 import com.bookend.reflection.ui.settings.SettingsScreen
 import java.time.LocalDate
 
+/** Home sits at depth 0; everything else is one level in, and animates that way. */
+private fun Screen.depth(): Int = if (this is Screen.Home) 0 else 1
+
 @Composable
 fun BookendRoot(
     viewModel: AppViewModel,
@@ -35,6 +41,7 @@ fun BookendRoot(
     val entries by viewModel.entries.collectAsStateWithLifecycle()
     val settings by viewModel.settings.collectAsStateWithLifecycle()
     val draft by viewModel.draft.collectAsStateWithLifecycle()
+    val saveState by viewModel.saveState.collectAsStateWithLifecycle()
 
     fun open(date: LocalDate, part: DayPart) {
         viewModel.openEntry(date, part)
@@ -46,7 +53,7 @@ fun BookendRoot(
         screen = Screen.Home
     }
 
-    // A reminder tap always lands on that half of today.
+    // A reminder or widget tap always lands on that half of today.
     LaunchedEffect(launchPart) {
         val part = launchPart ?: return@LaunchedEffect
         viewModel.refreshToday()
@@ -62,7 +69,17 @@ fun BookendRoot(
     ) {
         AnimatedContent(
             targetState = screen,
-            transitionSpec = { fadeIn() togetherWith fadeOut() },
+            transitionSpec = {
+                val forward = targetState.depth() >= initialState.depth()
+                val shift = if (forward) 1 else -1
+                (
+                    slideInHorizontally(tween(260)) { width -> shift * width / 6 } +
+                        fadeIn(tween(220))
+                    ) togetherWith (
+                    slideOutHorizontally(tween(260)) { width -> -shift * width / 8 } +
+                        fadeOut(tween(160))
+                    )
+            },
             label = "screen",
         ) { current ->
             when (current) {
@@ -78,6 +95,7 @@ fun BookendRoot(
                     date = current.date,
                     part = current.part,
                     entry = draft,
+                    saveState = saveState,
                     onAnswerChange = viewModel::updateAnswer,
                     onBack = ::goHome,
                     onSwitchPart = { part ->

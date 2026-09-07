@@ -27,6 +27,15 @@ import kotlinx.coroutines.launch
 import java.time.LocalDate
 
 private const val AUTOSAVE_DELAY_MS = 700L
+private const val SAVED_BADGE_MS = 1_600L
+
+enum class SaveState { IDLE, EDITING, SAVED }
+
+/** One day in the week strip: how many of its two halves were written in. */
+data class DayMark(
+    val date: LocalDate,
+    val partsWritten: Int,
+)
 
 data class HomeUiState(
     val today: LocalDate = LocalDate.now(),
@@ -34,6 +43,7 @@ data class HomeUiState(
     val evening: ReflectionEntry? = null,
     val streak: Int = 0,
     val totalEntries: Int = 0,
+    val week: List<DayMark> = emptyList(),
 ) {
     fun entryFor(part: DayPart): ReflectionEntry? =
         if (part == DayPart.MORNING) morning else evening
@@ -56,12 +66,20 @@ class AppViewModel(
 
     val home: StateFlow<HomeUiState> = combine(entries, today) { all, day ->
         val epochDay = day.toEpochDay()
+        val byDay = all.groupBy { it.dateEpochDay }
         HomeUiState(
             today = day,
             morning = all.firstOrNull { it.dateEpochDay == epochDay && it.part == DayPart.MORNING },
             evening = all.firstOrNull { it.dateEpochDay == epochDay && it.part == DayPart.EVENING },
             streak = currentStreak(all.map { it.date }.toSet(), day),
             totalEntries = all.size,
+            week = (6 downTo 0).map { back ->
+                val date = day.minusDays(back.toLong())
+                DayMark(
+                    date = date,
+                    partsWritten = byDay[date.toEpochDay()].orEmpty().count { !it.isBlank },
+                )
+            },
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), HomeUiState())
 
@@ -69,6 +87,11 @@ class AppViewModel(
 
     /** The entry currently open for editing, kept in memory and saved as you type. */
     val draft: StateFlow<ReflectionEntry?> = _draft.asStateFlow()
+
+    private val _saveState = MutableStateFlow(SaveState.IDLE)
+
+    /** Drives the quiet "saving / saved" line under the questions. */
+    val saveState: StateFlow<SaveState> = _saveState.asStateFlow()
 
     private var autosaveJob: Job? = null
 
@@ -79,6 +102,7 @@ class AppViewModel(
 
     fun openEntry(date: LocalDate, part: DayPart) {
         autosaveJob?.cancel()
+        _saveState.value = SaveState.IDLE
         _draft.value = ReflectionEntry.empty(date, part)
         viewModelScope.launch {
             val existing = entriesRepo.find(date, part) ?: return@launch
@@ -98,14 +122,19 @@ class AppViewModel(
         _draft.value = current.withAnswer(question, text)
         autosaveJob?.cancel()
         autosaveJob = viewModelScope.launch {
+            _saveState.value = SaveState.EDITING
             delay(AUTOSAVE_DELAY_MS)
             _draft.value?.let { entriesRepo.save(it) }
+            _saveState.value = SaveState.SAVED
+            delay(SAVED_BADGE_MS)
+            _saveState.value = SaveState.IDLE
         }
     }
 
     /** Flushes any pending edit; used when leaving the entry screen. */
     fun closeEntry() {
         autosaveJob?.cancel()
+        _saveState.value = SaveState.IDLE
         val pending = _draft.value
         _draft.value = null
         if (pending != null) {

@@ -16,41 +16,65 @@ import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
 
 private val LightColors = lightColorScheme(
-    primary = SunriseDark,
+    primary = SunriseDeep,
     onPrimary = Color.White,
-    primaryContainer = Sunrise,
-    onPrimaryContainer = Ink,
+    primaryContainer = SunriseLight,
+    onPrimaryContainer = SunriseInk,
     secondary = Dusk,
     onSecondary = Color.White,
     secondaryContainer = DuskLight,
-    onSecondaryContainer = Ink,
+    onSecondaryContainer = DuskInk,
+    tertiary = Dusk,
+    onTertiary = Color.White,
     background = Paper,
     onBackground = Ink,
     surface = Paper,
     onSurface = Ink,
-    surfaceVariant = PaperDim,
+    surfaceVariant = PaperMid,
+    onSurfaceVariant = InkSoft,
+    surfaceContainerLowest = Color.White,
+    surfaceContainerLow = PaperLow,
+    surfaceContainer = PaperMid,
+    surfaceContainerHigh = PaperHigh,
+    surfaceContainerHighest = PaperHigh,
+    outline = InkFaint,
+    outlineVariant = PaperEdge,
 )
 
 private val DarkColors = darkColorScheme(
     primary = Sunrise,
-    onPrimary = Ink,
-    primaryContainer = SunriseDark,
-    onPrimaryContainer = Color.White,
-    secondary = DuskLight,
-    onSecondary = Ink,
-    secondaryContainer = Dusk,
-    onSecondaryContainer = Color.White,
-    background = NightPaper,
-    onBackground = Paper,
-    surface = NightPaper,
-    onSurface = Paper,
-    surfaceVariant = NightSurface,
+    onPrimary = SunriseInk,
+    primaryContainer = Color(0xFF5C4300),
+    onPrimaryContainer = SunriseLight,
+    secondary = DuskBright,
+    onSecondary = Color(0xFF222C57),
+    secondaryContainer = DuskDeep,
+    onSecondaryContainer = DuskLight,
+    tertiary = DuskBright,
+    onTertiary = Color(0xFF222C57),
+    background = Night,
+    onBackground = Chalk,
+    surface = Night,
+    onSurface = Chalk,
+    surfaceVariant = NightHigh,
+    onSurfaceVariant = ChalkSoft,
+    surfaceContainerLowest = Color(0xFF0E0D0C),
+    surfaceContainerLow = NightLow,
+    surfaceContainer = NightMid,
+    surfaceContainerHigh = NightHigh,
+    surfaceContainerHighest = NightEdge,
+    outline = ChalkFaint,
+    outlineVariant = NightEdge,
 )
 
+/**
+ * Bookend keeps its own palette by default: the sunrise and dusk accents carry
+ * the meaning of the two halves of the day, which a dynamic palette would lose.
+ */
 @Composable
 fun BookendTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
-    dynamicColor: Boolean = true,
+    dynamicColor: Boolean = false,
     content: @Composable () -> Unit,
 ) {
     val context = LocalContext.current
@@ -65,14 +89,16 @@ fun BookendTheme(
     if (!view.isInEditMode) {
         SideEffect {
             val window = (view.context as Activity).window
-            WindowCompat.getInsetsController(window, view)
-                .isAppearanceLightStatusBars = !darkTheme
+            val controller = WindowCompat.getInsetsController(window, view)
+            controller.isAppearanceLightStatusBars = !darkTheme
+            controller.isAppearanceLightNavigationBars = !darkTheme
         }
     }
 
     MaterialTheme(
         colorScheme = colorScheme,
         typography = BookendTypography,
+        shapes = BookendShapes,
         content = content,
     )
 }
