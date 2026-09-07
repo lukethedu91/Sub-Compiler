@@ -54,8 +54,23 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           cp app/build/outputs/apk/debug/app-debug.apk bookend-debug.apk
-          gh release delete dev --yes --cleanup-tag || true
-          gh release create dev bookend-debug.apk \
-            --prerelease \
-            --title "Bookend (debug build)" \
-            --notes "Debug build of ${GITHUB_SHA}. Signed with a throwaway debug key, so uninstall any previous copy before installing a newer one."
+          notes="Debug build of ${GITHUB_SHA}. Signed with a throwaway debug key, so uninstall any previous copy before installing a newer one."
+
+          # Create the release once and update it in place afterwards: deleting
+          # and recreating churns the tag and loses the URL between runs.
+          if ! gh release view dev >/dev/null 2>&1; then
+            gh release create dev --prerelease --title "Bookend (debug build)" --notes "$notes"
+          else
+            gh release edit dev --notes "$notes"
+          fi
+
+          # Asset uploads have returned 500s; retry before giving up.
+          for attempt in 1 2 3; do
+            if gh release upload dev bookend-debug.apk --clobber; then
+              exit 0
+            fi
+            echo "upload attempt $attempt failed, retrying"
+            sleep 10
+          done
+          echo "could not upload the APK to the dev release"
+          exit 1
